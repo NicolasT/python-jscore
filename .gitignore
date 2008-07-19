@@ -1,0 +1,8 @@
+build
+dist
+*.bak
+*.swp
+jscore/jscore.c
+*.pyc
+python_jscore.egg-info
+jscore.so
