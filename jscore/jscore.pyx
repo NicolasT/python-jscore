@@ -62,13 +62,29 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef bint JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
     cdef void JSGarbageCollect(JSContextRef ctx)
 
+    cdef JSType JSValueGetType(JSContextRef ctx, JSValueRef value)
+    cdef JSValueRef JSValueMakeBoolean(JSContextRef ctx, bint boolean)
+    cdef bint JSValueToBoolean(JSContextRef ctx, JSValueRef value)
+    cdef JSValueRef JSValueMakeNumber(JSContextRef ctx, double number)
+    cdef double JSValueToNumber(JSContextRef ctx, JSValueRef value, JSValueRef
+            *exception)
+    cdef JSValueRef JSValueMakeString(JSContextRef ctx, JSStringRef string)
+    cdef JSStringRef JSValueToStringCopy(JSContextRef ctx, JSValueRef value,
+            JSValueRef* exception)
+    cdef JSValueRef JSValueMakeNull(JSContextRef ctx)
+
+
 cdef class String:
     cdef JSStringRef str_
 
-    def __cinit__(self, s):
+    def __init__(self, s):
         if s is None:
             self.str_ = NULL
             return
+
+        if not isinstance(s, basestring):
+            raise TypeError('Provided value should be a string')
+
         s = s.encode('UTF-8')
         cdef char *cs = s
         self.str_ = JSStringCreateWithUTF8CString(cs)
@@ -174,3 +190,143 @@ cdef class GlobalContext(Context):
     #TODO Fix arguments
     def __init__(self):
         self.ctx = <JSContextRef>JSGlobalContextCreate(NULL)
+
+
+cdef class _Value
+cdef _value_load(Context ctx, JSValueRef value):
+    mapping = {
+            kJSTypeBoolean: BooleanValue,
+            kJSTypeNumber: NumberValue,
+            kJSTypeString: StringValue,
+            kJSTypeNull: NullValue,
+    }
+
+    cdef JSType t = JSValueGetType(ctx.ctx, value)
+
+    if not t in mapping:
+        raise ValueError('Unknown JSValueRef type provided')
+
+    tcls = mapping[t]
+
+    cdef _Value inst = tcls(None, _NO_INIT)
+    inst.value = value
+
+    return inst
+
+cdef _value_test_generic(Context ctx, JSValueRef value, content, valuetype, pythontype):
+    o = _value_load(ctx, value)
+    assert(isinstance(o, valuetype))
+    o = o.python_value(ctx)
+    assert(isinstance(o, pythontype))
+    assert(o == content)
+
+def _value_test_bool():
+    cdef Context ctx = GlobalContext()
+    cdef JSValueRef v = JSValueMakeBoolean(ctx.ctx, True)
+    _value_test_generic(ctx, v, True, BooleanValue, bool)
+
+def _value_test_number():
+    cdef Context ctx = GlobalContext()
+    cdef JSValueRef v = JSValueMakeNumber(ctx.ctx, 123.456)
+    _value_test_generic(ctx, v, 123.456, NumberValue, float)
+
+def _value_test_string():
+    cdef Context ctx = GlobalContext()
+    cdef JSStringRef s = JSStringCreateWithUTF8CString(u'abc123')
+    cdef JSValueRef v = JSValueMakeString(ctx.ctx, s)
+    _value_test_generic(ctx, v, u'abc123', StringValue, unicode)
+
+def _value_test_null():
+    cdef Context ctx = GlobalContext()
+    cdef JSValueRef v = JSValueMakeNull(ctx.ctx)
+    from types import NoneType
+    _value_test_generic(ctx, v, None, NullValue, NoneType)
+
+class _Dummy: pass
+_NO_INIT = _Dummy()
+
+cdef class _Value:
+    cdef JSValueRef value
+
+    def python_value(self, Context ctx):
+        raise NotImplementedError
+
+
+cdef class BooleanValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        if not value in (True, False):
+            raise ValueError('Value should be True or False')
+
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        self.value = JSValueMakeBoolean(ctx.ctx, value)
+
+    def python_value(self, Context ctx):
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+        return JSValueToBoolean(ctx.ctx, self.value)
+
+
+cdef class NumberValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        value = float(value)
+
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        self.value = JSValueMakeNumber(ctx.ctx, value)
+
+    def python_value(self, Context ctx):
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+        #TODO Exception handling
+        return JSValueToNumber(ctx.ctx, self.value, NULL)
+
+
+cdef class StringValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        cdef String svalue
+        if not isinstance(value, String):
+            svalue = String(value)
+        else:
+            svalue = value
+
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        self.value = JSValueMakeString(ctx.ctx, svalue.str_)
+
+    def python_value(self, Context ctx):
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+        #TODO Exception handling
+        cdef JSStringRef s = JSValueToStringCopy(ctx.ctx, self.value, NULL)
+        cdef String so = String(None)
+        so.str_ = s
+        return unicode(so)
+
+
+cdef class NullValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        if value is not None:
+            raise TypeError('NullValue can only be initialized with None as value')
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        self.value = JSValueMakeNull(ctx.ctx)
+
+    def python_value(self, Context ctx):
+        return None
