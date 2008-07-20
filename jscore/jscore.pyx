@@ -50,6 +50,7 @@ cdef extern from "JavaScriptCore/JavaScript.h":
 
     cdef JSGlobalContextRef JSGlobalContextCreate(JSClassRef globalObjectClass)
     cdef JSObjectRef JSContextGetGlobalObject(JSContextRef ctx)
+    cdef void JSGlobalContextRelease(JSGlobalContextRef ctx)
 
     ctypedef unsigned short JSChar
     cdef JSStringRef JSStringCreateWithUTF8CString(const_char_ptr string)
@@ -190,6 +191,11 @@ cdef class GlobalContext(Context):
     #TODO Fix arguments
     def __init__(self):
         self.ctx = JSGlobalContextCreate(NULL)
+
+    def __dealloc__(self):
+        cdef JSGlobalContextRef ctx = <JSGlobalContextRef>self.ctx
+        JSGlobalContextRelease(ctx)
+        JSGarbageCollect(self.ctx)
 
 
 cdef class _Value
