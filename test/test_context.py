@@ -74,6 +74,13 @@ class TestContext(unittest.TestCase):
         script = u'a = \'%s\';' % u
         self.assertEquals(self.ctx.evaluate_script(script), u)
 
+    def test_evaluate_script_type_string_utf8(self):
+        u1 = u'abc123&é"(§è!çà)ض'
+        u2 = u'ธฒฟໂໜ'
+        expected = u'%sabc%s' % (u1, u2)
+        script = u'a = \'%s\' + \'abc\' + \'%s\';' % (u1, u2)
+        self.assertEquals(self.ctx.evaluate_script(script), expected)
+
     def test_evaluate_script_type_null(self):
         script = 'a = null;'
         self.assertEquals(self.ctx.evaluate_script(script), None)
