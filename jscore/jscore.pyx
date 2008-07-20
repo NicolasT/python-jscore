@@ -189,7 +189,7 @@ cdef class Context:
 cdef class GlobalContext(Context):
     #TODO Fix arguments
     def __init__(self):
-        self.ctx = <JSContextRef>JSGlobalContextCreate(NULL)
+        self.ctx = JSGlobalContextCreate(NULL)
 
 
 cdef class _Value
