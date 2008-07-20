@@ -80,6 +80,55 @@ cdef extern from "JavaScriptCore/JavaScript.h":
             JSValueRef *exception)
 
 
+class JSException(Exception):
+    exception_value = None
+
+    def __init__(self, message, exception_value):
+        Exception.__init__(self, message)
+        self.exception_value = exception_value
+
+class JSSyntaxError(JSException):
+    error_line = None
+    source_id = None
+    source_url = None
+
+    def __init__(self, message, exception_value, errLine, sourceId, sourceURL):
+        JSException.__init__(self, message, exception_value)
+        self.error_line = errLine
+        self.source_id = sourceId
+        self.source_url = sourceURL
+
+
+cdef class Context
+cdef class String
+cdef _check_exception(Context ctx, JSValueRef exception, message):
+    if not exception:
+        return
+
+    cdef JSValueRef innerexception = NULL
+    cdef JSContextRef ctx_ = ctx.ctx
+
+    cdef JSStringRef exceptionstring = NULL
+    cdef String s
+
+    value = _value_load(ctx, exception).python_value(ctx)
+    if isinstance(value, JSObject):
+        #TODO Parse and raise appropriate exceptions
+        exceptionstring = JSValueToStringCopy(ctx_, exception, &innerexception)
+        _check_exception(ctx, innerexception,
+            'An exception occurred while parsing a prior exception')
+
+        s = String(None)
+        s.str_ = exceptionstring
+        v = str(s)
+
+        JSStringRelease(exceptionstring)
+
+        raise JSException(v, v)
+    else:
+        raise JSException(message, value)
+
+
 cdef class String:
     cdef JSStringRef str_
 
@@ -193,9 +242,15 @@ cdef class Context:
         cdef String jsscript = String(script)
         cdef String jssource = String(sourceURL)
 
-        #TODO Handle errors
-        return JSCheckScriptSyntax(self.ctx, jsscript.str_, jssource.str_,
-                startingLineNumber, NULL)
+        cdef JSValueRef exception = NULL
+
+        ret = JSCheckScriptSyntax(self.ctx, jsscript.str_, jssource.str_,
+                startingLineNumber, &exception)
+
+        _check_exception(self, exception,
+            'Exception while validating script syntax')
+
+        return ret
 
     def garbage_collect(self):
         JSGarbageCollect(self.ctx)
@@ -207,12 +262,12 @@ cdef class Context:
 
         cdef String jsscript = String(script)
         cdef String jssource = String(sourceURL)
+        cdef JSValueRef exception = NULL
 
         #TODO Exception handling
         cdef JSValueRef result = JSEvaluateScript(self.ctx, jsscript.str_,
-                NULL, jssource.str_, startingLineNumber, NULL)
-        if result == NULL:
-            raise RuntimeError('Error executing script')
+                NULL, jssource.str_, startingLineNumber, &exception)
+        _check_exception(self, exception, 'Exception while evaluating script')
 
         pythonresult = _value_load(self, result)
 

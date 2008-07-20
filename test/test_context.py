@@ -24,9 +24,8 @@ class TestContext(unittest.TestCase):
 
     def test_check_script_syntax_invalid(self):
         script = '--- I am an invalid script ---'
-        result = self.ctx.check_script_syntax(script)
-
-        self.assert_(result is False)
+        self.assertRaises(jscore.JSException,
+                self.ctx.check_script_syntax, script)
 
     def test_check_script_syntax_params(self):
         script = 'a_valid_script;'
@@ -55,7 +54,7 @@ class TestContext(unittest.TestCase):
 
     def test_evaluate_script_invalid(self):
         script = 'a -;'
-        self.assertRaises(RuntimeError, self.ctx.evaluate_script, script)
+        self.assertRaises(jscore.JSException, self.ctx.evaluate_script, script)
 
     def test_evaluate_script_empty(self):
         script = ''
