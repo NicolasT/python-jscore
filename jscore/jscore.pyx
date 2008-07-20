@@ -82,8 +82,12 @@ cdef extern from "JavaScriptCore/JavaScript.h":
             JSValueRef *exception)
     cdef JSValueRef JSValueMakeNull(JSContextRef ctx)
     cdef JSValueRef JSValueMakeUndefined(JSContextRef ctx)
+    cdef bint JSValueIsObject(JSContextRef ctx, JSValueRef value)
     cdef JSObjectRef JSValueToObject(JSContextRef ctx, JSValueRef value,
             JSValueRef *exception)
+
+    cdef JSValueRef JSObjectGetProperty(JSContextRef ctx, JSObjectRef object_,
+            JSStringRef propertyName, JSValueRef *exception)
 
 
 class JSException(Exception):
@@ -223,14 +227,62 @@ cdef class String:
         raise NotImplementedError('Only equality operation (2) is supported')
 
 
+cdef class JSObject
+def _object_test_equality():
+    cdef Context ctx1 = GlobalContext()
+    cdef Context ctx2 = GlobalContext()
+
+    cdef JSStringRef script = JSStringCreateWithUTF8CString('o = Object();')
+
+    cdef JSValueRef o1_ = JSEvaluateScript(ctx1.ctx, script, NULL, NULL, 0,
+            NULL)
+    assert JSValueIsObject(ctx1.ctx, o1_), 'Generated value is not an object'
+    cdef JSObjectRef obj1 = JSValueToObject(ctx1.ctx, o1_, NULL)
+
+    cdef JSValueRef o2_ = JSEvaluateScript(ctx1.ctx, script, NULL, NULL, 0,
+            NULL)
+    assert JSValueIsObject(ctx1.ctx, o2_), 'Generated value is not an object'
+    cdef JSObjectRef obj2 = JSValueToObject(ctx1.ctx, o2_, NULL)
+
+    JSStringRelease(script)
+
+    cdef JSObject o1 = JSObject(_NO_INIT)
+    o1.obj = obj1
+    o1.ctx = ctx1
+    cdef JSObject o2 = JSObject(_NO_INIT)
+    o2.obj = obj1
+    o2.ctx = ctx1
+    assert o1 == o2, 'Equality failed'
+
+    o2.obj = obj2
+    assert not o1 == o2, 'Non-equality based on obj failed'
+
+    o2.obj = obj1
+    o2.ctx = ctx2
+    assert not o1 == o2, 'Non-equality based on ctx failed'
+
+
 cdef class JSObject:
     cdef JSObjectRef obj
+    cdef Context ctx
 
     def __richcmp__(JSObject self, JSObject b, op):
         if op == 2:
-            return self.obj == b.obj
+            return self.ctx.ctx == b.ctx.ctx and self.obj == b.obj
 
         raise NotImplementedError
+
+    def __getattr__(self, name):
+        cdef String jsname = String(name)
+        cdef JSValueRef exception = NULL
+        cdef JSValueRef o = JSObjectGetProperty(self.ctx.ctx, self.obj,
+                jsname.str_, &exception)
+        _check_exception(self.ctx, exception,
+                'Error while getting attribute%s' % name)
+        value = _value_load(self.ctx, o).python_value(self.ctx)
+        if value is UNDEFINED:
+            raise AttributeError('No attribute %s defined' % name)
+        return value
 
 
 cdef class Context:
@@ -240,6 +292,7 @@ cdef class Context:
         cdef JSObjectRef real_obj = JSContextGetGlobalObject(self.ctx)
         cdef JSObject obj = JSObject()
         obj.obj = real_obj
+        obj.ctx = self
         return obj
 
     def check_script_syntax(self, script, sourceURL=None,
@@ -358,6 +411,7 @@ def _value_test_object():
     JSStringRelease(script)
     cdef JSObject expected = JSObject()
     expected.obj = JSValueToObject(ctx.ctx, o, NULL)
+    expected.ctx = ctx
     _value_test_generic(ctx, o, expected, ObjectValue, JSObject)
 
 class _Dummy: pass
@@ -489,4 +543,5 @@ cdef class ObjectValue(_Value):
         _check_exception(ctx, exception, 'Error fetching object from value')
         cdef JSObject o_ = JSObject()
         o_.obj = o
+        o_.ctx = ctx
         return o_
