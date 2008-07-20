@@ -48,3 +48,32 @@ class TestContext(unittest.TestCase):
 
     def test_garbage_collect(self):
         self.ctx.garbage_collect()
+
+    def test_evaluate_script_valid(self):
+        script = 'a = 1; b = 2; c = 1 + 2;'
+        res = self.ctx.evaluate_script(script)
+
+    def test_evaluate_script_invalid(self):
+        script = 'a -;'
+        self.assertRaises(RuntimeError, self.ctx.evaluate_script, script)
+
+    def test_evaluate_script_empty(self):
+        script = ''
+        self.assertRaises(ValueError, self.ctx.evaluate_script, script)
+
+    def test_evaluatate_script_type_number(self):
+        script = 'a = 1.234;'
+        self.assertEquals(self.ctx.evaluate_script(script), 1.234)
+
+    def test_evaluate_script_type_bool(self):
+        script = 'a = true;'
+        self.assertEquals(self.ctx.evaluate_script(script), True)
+
+    def test_evaluate_script_type_string(self):
+        u = u'abc123&é"(§è!çà)ض'
+        script = u'a = \'%s\';' % u
+        self.assertEquals(self.ctx.evaluate_script(script), u)
+
+    def test_evaluate_script_type_null(self):
+        script = 'a = null;'
+        self.assertEquals(self.ctx.evaluate_script(script), None)

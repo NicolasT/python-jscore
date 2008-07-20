@@ -61,6 +61,7 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef bint JSStringIsEqualToUTF8CString(JSStringRef a, const_char_ptr b)
 
     cdef bint JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
+    cdef JSValueRef JSEvaluateScript(JSContextRef ctx, JSStringRef script, JSObjectRef thisObject, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
     cdef void JSGarbageCollect(JSContextRef ctx)
 
     cdef JSType JSValueGetType(JSContextRef ctx, JSValueRef value)
@@ -162,8 +163,10 @@ cdef class String:
 
         raise NotImplementedError('Only equality operation (2) is supported')
 
+
 cdef class Object:
     cdef JSObjectRef obj
+
 
 cdef class Context:
     cdef JSContextRef ctx
@@ -186,6 +189,24 @@ cdef class Context:
 
     def garbage_collect(self):
         JSGarbageCollect(self.ctx)
+
+    #TODO Fix args: thisObject
+    def evaluate_script(self, script, sourceURL=None, startingLineNumber=0):
+        if not script:
+            raise ValueError('No script provided')
+
+        cdef String jsscript = String(script)
+        cdef String jssource = String(sourceURL)
+
+        #TODO Exception handling
+        cdef JSValueRef result = JSEvaluateScript(self.ctx, jsscript.str_,
+                NULL, jssource.str_, startingLineNumber, NULL)
+        if result == NULL:
+            raise RuntimeError('Error executing script')
+
+        pythonresult = _value_load(self, result)
+
+        return pythonresult.python_value(self)
 
 cdef class GlobalContext(Context):
     #TODO Fix arguments
