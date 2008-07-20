@@ -91,6 +91,10 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef JSValueRef JSObjectGetPropertyAtIndex(JSContextRef ctx,
             JSObjectRef object_, unsigned propertyIndex,
             JSValueRef *exception)
+    cdef bint JSObjectIsFunction(JSContextRef ctx, JSObjectRef object_)
+    cdef JSValueRef JSObjectCallAsFunction(JSContextRef ctx,
+            JSObjectRef object_, JSObjectRef thisObject, size_t argumentCount,
+            JSValueRef arguments[], JSValueRef *exception)
 
 
 class JSException(Exception):
@@ -239,31 +243,40 @@ def _object_test_equality():
 
     cdef JSValueRef o1_ = JSEvaluateScript(ctx1.ctx, script, NULL, NULL, 0,
             NULL)
-    assert JSValueIsObject(ctx1.ctx, o1_), 'Generated value is not an object'
-    cdef JSObjectRef obj1 = JSValueToObject(ctx1.ctx, o1_, NULL)
 
     cdef JSValueRef o2_ = JSEvaluateScript(ctx1.ctx, script, NULL, NULL, 0,
             NULL)
-    assert JSValueIsObject(ctx1.ctx, o2_), 'Generated value is not an object'
-    cdef JSObjectRef obj2 = JSValueToObject(ctx1.ctx, o2_, NULL)
 
     JSStringRelease(script)
 
-    cdef JSObject o1 = JSObject(_NO_INIT)
-    o1.obj = obj1
-    o1.ctx = ctx1
-    cdef JSObject o2 = JSObject(_NO_INIT)
-    o2.obj = obj1
-    o2.ctx = ctx1
+    cdef JSObject o1 = _JSObject_from_JSValueRef(ctx1, o1_)
+    cdef JSObject o2 = _JSObject_from_JSValueRef(ctx1, o1_)
     assert o1 == o2, 'Equality failed'
 
-    o2.obj = obj2
+    o2 = _JSObject_from_JSValueRef(ctx1, o2_)
     assert not o1 == o2, 'Non-equality based on obj failed'
 
-    o2.obj = obj1
-    o2.ctx = ctx2
+    o2 = _JSObject_from_JSValueRef(ctx2, o1_)
     assert not o1 == o2, 'Non-equality based on ctx failed'
 
+cdef JSObject _JSObject_from_JSValueRef(Context ctx, JSValueRef value):
+    assert JSValueIsObject(ctx.ctx, value)
+
+    cdef JSValueRef exception = NULL
+
+    cdef JSObjectRef real_object = JSValueToObject(ctx.ctx, value, &exception)
+    _check_exception(ctx, exception,
+            'Error casting JSValueRef to JSObject')
+
+    cdef JSObject obj
+    if JSObjectIsFunction(ctx.ctx, real_object):
+        obj = CallableJSObject()
+    else:
+        obj = JSObject()
+
+    obj.obj = real_object
+    obj.ctx = ctx
+    return obj
 
 cdef class JSObject:
     cdef JSObjectRef obj
@@ -336,6 +349,59 @@ cdef class JSObject:
             raise IndexError('Invalid index %d' % item)
         return value
 
+
+cdef JSValueRef _python_to_value(Context ctx, obj):
+    cdef JSValueRef value = NULL
+    cdef double f
+    cdef String s
+    cdef bint b
+
+    if obj is None:
+        value = JSValueMakeNull(ctx.ctx)
+
+    elif obj in (True, False):
+        b = bool(obj)
+        value = JSValueMakeBoolean(ctx.ctx, b)
+
+    elif isinstance(obj, (int, long, float)):
+        f = float(obj)
+        value = JSValueMakeNumber(ctx.ctx, f)
+
+    elif isinstance(obj, basestring):
+        s = String(obj)
+        value = JSValueMakeString(ctx.ctx, s.str_)
+
+    if value == NULL:
+        raise RuntimeError('Unable to convert Python object %r to JSValueRef'
+                % obj)
+
+    return value
+
+cdef class CallableJSObject(JSObject):
+    #TODO Support thisObject
+    def __call__(self, *args):
+        cdef JSValueRef result
+        cdef JSValueRef exception = NULL
+        cdef JSValueRef *jsargs = NULL
+
+        cdef int num_args = len(args)
+        if num_args:
+            jsargs = <JSValueRef *>malloc(num_args * sizeof(JSValueRef))
+            if not jsargs:
+                raise RuntimeError('Unable to allocate memory')
+            for i in xrange(num_args):
+                jsargs[i] = _python_to_value(self.ctx, args[i])
+
+        result = JSObjectCallAsFunction(self.ctx.ctx, self.obj, NULL, num_args,
+                jsargs, &exception)
+
+        if num_args and jsargs:
+            free(jsargs)
+
+        _check_exception(self.ctx, exception, 'Error calling function object')
+
+        value = _value_load(self.ctx, result).python_value(self.ctx)
+        return value
 
 cdef class Context:
     cdef JSContextRef ctx
@@ -461,9 +527,7 @@ def _value_test_object():
     cdef JSStringRef script = JSStringCreateWithUTF8CString('o = Object();')
     cdef JSValueRef o = JSEvaluateScript(ctx.ctx, script, NULL, NULL, 0, NULL)
     JSStringRelease(script)
-    cdef JSObject expected = JSObject()
-    expected.obj = JSValueToObject(ctx.ctx, o, NULL)
-    expected.ctx = ctx
+    cdef JSObject expected = _JSObject_from_JSValueRef(ctx, o)
     _value_test_generic(ctx, o, expected, ObjectValue, JSObject)
 
 class _Dummy: pass
@@ -591,9 +655,5 @@ cdef class ObjectValue(_Value):
         if not ctx:
             raise ValueError('Context ctx not provided')
         cdef JSValueRef exception = NULL
-        cdef JSObjectRef o = JSValueToObject(ctx.ctx, self.value, &exception)
-        _check_exception(ctx, exception, 'Error fetching object from value')
-        cdef JSObject o_ = JSObject()
-        o_.obj = o
-        o_.ctx = ctx
+        cdef JSObject o_ = _JSObject_from_JSValueRef(ctx, self.value)
         return o_

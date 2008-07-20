@@ -139,3 +139,150 @@ o;
         self.assertRaises(ValueError, out.__getitem__, slice(None, 100, -1))
         self.assertRaises(ValueError, out.__getitem__,
                 slice(None, None, None))
+
+
+class TestCallables(unittest.TestCase):
+    def setUp(self):
+        self.ctx = jscore.GlobalContext()
+
+    def test_instanciation(self):
+        script = '''
+function foo() {
+}
+foo;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+    def test_call_no_args(self):
+        script = '''
+function foo() {
+    return 123.456;
+}
+foo;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out()
+        self.assertEqual(value, 123.456)
+
+    def test_call_return_utf8(self):
+        s = u'abc123&é"(§è!çà)ض'
+
+        script = u'''
+function foo() {
+    return '%s';
+}
+foo;
+''' % s
+
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out()
+        self.assertEqual(value, s)
+
+    def test_call_boolean(self):
+        script = '''
+function foo(a) {
+    return !a;
+}
+foo;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out(True)
+        self.assertEqual(value, False)
+        self.assertEqual(out(False), True)
+
+    def test_call_number(self):
+        script = '''
+function foo(a) {
+    return a * 2;
+}
+foo;
+'''
+        f = 1.234
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out(f)
+        self.assertEqual(value, 2 * f)
+
+    def test_call_none(self):
+        script = '''
+function foo(a) {
+        return (a == null);
+}
+foo;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out(None)
+        self.assertEqual(value, True)
+
+    def test_call_string(self):
+        script = '''
+function foo(a) {
+    return 'test' + a;
+}
+foo;
+'''
+        s = 'abc'
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out(s)
+        self.assertEqual(value, 'test' + s)
+
+    def test_call_mixed(self):
+        script = u'''
+function foo(b, nr, nu, s) {
+    if(!b == true)
+        return 'Boolean value is wrong';
+    if(!nr == 1.2)
+        return 'Number value is wrong';
+    if(!nu == null)
+        return 'Null value is wrong';
+    if(!s == 'abc123&é"(§è!çà)ض')
+        return 'String value is wrong';
+
+    return true;
+}
+foo;
+'''
+
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.CallableJSObject))
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out(True, 1.2, None, u'abc123&é"(§è!çà)ض')
+        assert value == True, value
+        self.assertEqual(value, True)
+
+    def test_method(self):
+        script = '''
+a = {
+    foo: function() {
+        return 'abc';
+    }
+};
+'''
+        out = self.ctx.evaluate_script(script)
+        print type(out)
+        print out
+        print out.__class__
+        self.assert_(isinstance(out, jscore.JSObject))
+
+        value = out.foo()
+        self.assertEqual(value, 'abc')
