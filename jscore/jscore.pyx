@@ -59,6 +59,7 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef size_t JSStringGetUTF8CString(JSStringRef string, char* buffer, size_t bufferSize)
     cdef size_t JSStringGetMaximumUTF8CStringSize(JSStringRef string)
     cdef bint JSStringIsEqualToUTF8CString(JSStringRef a, const_char_ptr b)
+    cdef void JSStringRelease(JSStringRef string)
 
     cdef bint JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
     cdef JSValueRef JSEvaluateScript(JSContextRef ctx, JSStringRef script, JSObjectRef thisObject, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
@@ -72,9 +73,11 @@ cdef extern from "JavaScriptCore/JavaScript.h":
             *exception)
     cdef JSValueRef JSValueMakeString(JSContextRef ctx, JSStringRef string)
     cdef JSStringRef JSValueToStringCopy(JSContextRef ctx, JSValueRef value,
-            JSValueRef* exception)
+            JSValueRef *exception)
     cdef JSValueRef JSValueMakeNull(JSContextRef ctx)
     cdef JSValueRef JSValueMakeUndefined(JSContextRef ctx)
+    cdef JSObjectRef JSValueToObject(JSContextRef ctx, JSValueRef value,
+            JSValueRef *exception)
 
 
 cdef class String:
@@ -165,8 +168,14 @@ cdef class String:
         raise NotImplementedError('Only equality operation (2) is supported')
 
 
-cdef class Object:
+cdef class JSObject:
     cdef JSObjectRef obj
+
+    def __richcmp__(JSObject self, JSObject b, op):
+        if op == 2:
+            return self.obj == b.obj
+
+        raise NotImplementedError
 
 
 cdef class Context:
@@ -174,7 +183,7 @@ cdef class Context:
 
     def get_global_object(self):
         cdef JSObjectRef real_obj = JSContextGetGlobalObject(self.ctx)
-        cdef Object obj = Object()
+        cdef JSObject obj = JSObject()
         obj.obj = real_obj
         return obj
 
@@ -231,6 +240,7 @@ cdef _value_load(Context ctx, JSValueRef value):
             kJSTypeString: StringValue,
             kJSTypeNull: NullValue,
             kJSTypeUndefined: UndefinedValue,
+            kJSTypeObject: ObjectValue,
     }
 
     cdef JSType t = JSValueGetType(ctx.ctx, value)
@@ -278,6 +288,15 @@ def _value_test_undefined():
     cdef Context ctx = GlobalContext()
     cdef JSValueRef v = JSValueMakeUndefined(ctx.ctx)
     _value_test_generic(ctx, v, UNDEFINED, UndefinedValue, UndefinedType)
+
+def _value_test_object():
+    cdef Context ctx = GlobalContext()
+    cdef JSStringRef script = JSStringCreateWithUTF8CString('o = Object();')
+    cdef JSValueRef o = JSEvaluateScript(ctx.ctx, script, NULL, NULL, 0, NULL)
+    JSStringRelease(script)
+    cdef JSObject expected = JSObject()
+    expected.obj = JSValueToObject(ctx.ctx, o, NULL)
+    _value_test_generic(ctx, o, expected, ObjectValue, JSObject)
 
 class _Dummy: pass
 _NO_INIT = _Dummy()
@@ -384,3 +403,23 @@ cdef class UndefinedValue(_Value):
 
     def python_value(self, Context ctx):
         return UNDEFINED
+
+
+cdef class ObjectValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        raise RuntimeError('Creating ObjectValues is not possible, abort')
+
+    def python_value(self, Context ctx):
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+        #TODO Exception handling
+        cdef JSObjectRef o = JSValueToObject(ctx.ctx, self.value, NULL)
+        cdef JSObject o_ = JSObject()
+        o_.obj = o
+        return o_

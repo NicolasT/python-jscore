@@ -145,3 +145,6 @@ class TestValue(unittest.TestCase):
 
     def test_undefined(self):
         jscore._value_test_undefined()
+
+    def test_object(self):
+        jscore._value_test_object()

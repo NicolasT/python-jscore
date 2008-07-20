@@ -14,7 +14,7 @@ class TestContext(unittest.TestCase):
         g = self.ctx.get_global_object()
 
         self.assert_(g)
-        self.assert_(isinstance(g, jscore.Object))
+        self.assert_(isinstance(g, jscore.JSObject))
 
     def test_check_script_syntax_valid(self):
         script = 'a = 1; b = 2; c = a + b;'
@@ -84,3 +84,8 @@ class TestContext(unittest.TestCase):
     def test_evaluate_script_type_null(self):
         script = 'a = null;'
         self.assertEquals(self.ctx.evaluate_script(script), None)
+
+    def test_evaluate_script_type_object(self):
+        script = 'o = Object();'
+        res = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(res, jscore.JSObject))
