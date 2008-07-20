@@ -108,6 +108,28 @@ class TestNull(unittest.TestCase):
         self.assertEquals(n.python_value(self.ctx), i)
 
 
+class TestUndefined(unittest.TestCase):
+    def setUp(self):
+        self.ctx = jscore.GlobalContext()
+
+    def test_instanciate(self):
+        s = jscore.UndefinedValue(self.ctx, jscore.UNDEFINED)
+
+    def test_instanciate_invalid_context(self):
+        self.assertRaises(ValueError, jscore.UndefinedValue, None,
+                jscore.UNDEFINED)
+        self.assertRaises(TypeError, jscore.UndefinedValue, 123,
+                jscore.UNDEFINED)
+
+    def test_instanciate_invalid_value(self):
+        self.assertRaises(TypeError, jscore.StringValue, self.ctx, 123)
+
+    def test_value(self):
+        i = jscore.UNDEFINED
+        n = jscore.UndefinedValue(self.ctx, i)
+        self.assertEquals(n.python_value(self.ctx), i)
+
+
 class TestValue(unittest.TestCase):
     def test_bool(self):
         jscore._value_test_bool()
@@ -120,3 +142,6 @@ class TestValue(unittest.TestCase):
 
     def test_null(self):
         jscore._value_test_null()
+
+    def test_undefined(self):
+        jscore._value_test_undefined()

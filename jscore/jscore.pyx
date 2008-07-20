@@ -74,6 +74,7 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef JSStringRef JSValueToStringCopy(JSContextRef ctx, JSValueRef value,
             JSValueRef* exception)
     cdef JSValueRef JSValueMakeNull(JSContextRef ctx)
+    cdef JSValueRef JSValueMakeUndefined(JSContextRef ctx)
 
 
 cdef class String:
@@ -219,6 +220,9 @@ cdef class GlobalContext(Context):
         JSGarbageCollect(self.ctx)
 
 
+class UndefinedType: pass
+UNDEFINED = UndefinedType()
+
 cdef class _Value
 cdef _value_load(Context ctx, JSValueRef value):
     mapping = {
@@ -226,6 +230,7 @@ cdef _value_load(Context ctx, JSValueRef value):
             kJSTypeNumber: NumberValue,
             kJSTypeString: StringValue,
             kJSTypeNull: NullValue,
+            kJSTypeUndefined: UndefinedValue,
     }
 
     cdef JSType t = JSValueGetType(ctx.ctx, value)
@@ -268,6 +273,11 @@ def _value_test_null():
     cdef JSValueRef v = JSValueMakeNull(ctx.ctx)
     from types import NoneType
     _value_test_generic(ctx, v, None, NullValue, NoneType)
+
+def _value_test_undefined():
+    cdef Context ctx = GlobalContext()
+    cdef JSValueRef v = JSValueMakeUndefined(ctx.ctx)
+    _value_test_generic(ctx, v, UNDEFINED, UndefinedValue, UndefinedType)
 
 class _Dummy: pass
 _NO_INIT = _Dummy()
@@ -357,3 +367,20 @@ cdef class NullValue(_Value):
 
     def python_value(self, Context ctx):
         return None
+
+
+cdef class UndefinedValue(_Value):
+    def __init__(self, Context ctx, value):
+        if value is _NO_INIT:
+            return
+
+        if value is not UNDEFINED:
+            raise TypeError('UndefinedValue can only be initialized with UNDEFINED as value')
+
+        if not ctx:
+            raise ValueError('Context ctx not provided')
+
+        self.value = JSValueMakeUndefined(ctx.ctx)
+
+    def python_value(self, Context ctx):
+        return UNDEFINED
