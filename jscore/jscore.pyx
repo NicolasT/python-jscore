@@ -264,7 +264,6 @@ cdef class Context:
         cdef String jssource = String(sourceURL)
         cdef JSValueRef exception = NULL
 
-        #TODO Exception handling
         cdef JSValueRef result = JSEvaluateScript(self.ctx, jsscript.str_,
                 NULL, jssource.str_, startingLineNumber, &exception)
         _check_exception(self, exception, 'Exception while evaluating script')
@@ -397,8 +396,10 @@ cdef class NumberValue(_Value):
     def python_value(self, Context ctx):
         if not ctx:
             raise ValueError('Context ctx not provided')
-        #TODO Exception handling
-        return JSValueToNumber(ctx.ctx, self.value, NULL)
+        cdef JSValueRef exception = NULL
+        ret = JSValueToNumber(ctx.ctx, self.value, &exception)
+        _check_exception(ctx, exception, 'Error while parsing number value')
+        return ret
 
 
 cdef class StringValue(_Value):
@@ -420,8 +421,10 @@ cdef class StringValue(_Value):
     def python_value(self, Context ctx):
         if not ctx:
             raise ValueError('Context ctx not provided')
-        #TODO Exception handling
-        cdef JSStringRef s = JSValueToStringCopy(ctx.ctx, self.value, NULL)
+        cdef JSValueRef exception = NULL
+        cdef JSStringRef s = JSValueToStringCopy(ctx.ctx, self.value,
+                &exception)
+        _check_exception(ctx, exception, 'Error building string value')
         cdef String so = String(None)
         so.str_ = s
         return unicode(so)
@@ -473,8 +476,9 @@ cdef class ObjectValue(_Value):
     def python_value(self, Context ctx):
         if not ctx:
             raise ValueError('Context ctx not provided')
-        #TODO Exception handling
-        cdef JSObjectRef o = JSValueToObject(ctx.ctx, self.value, NULL)
+        cdef JSValueRef exception = NULL
+        cdef JSObjectRef o = JSValueToObject(ctx.ctx, self.value, &exception)
+        _check_exception(ctx, exception, 'Error fetching object from value')
         cdef JSObject o_ = JSObject()
         o_.obj = o
         return o_
