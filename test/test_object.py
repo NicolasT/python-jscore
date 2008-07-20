@@ -279,9 +279,6 @@ a = {
 };
 '''
         out = self.ctx.evaluate_script(script)
-        print type(out)
-        print out
-        print out.__class__
         self.assert_(isinstance(out, jscore.JSObject))
 
         value = out.foo()
