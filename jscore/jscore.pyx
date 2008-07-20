@@ -10,7 +10,8 @@ cdef extern from "string.h":
     cdef size_t strlen(const_char_ptr data)
 
 cdef extern from "Python.h":
-    cdef object PyUnicode_DecodeUTF8(const_char_ptr s, Py_ssize_t size, char* errors)
+    cdef object PyUnicode_DecodeUTF8(const_char_ptr s, Py_ssize_t size,
+            char *errors)
     cdef object PyUnicode_AsUTF8String(object o)
     cdef const_char_ptr PyString_AsString(object o)
 
@@ -56,21 +57,26 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef JSStringRef JSStringCreateWithUTF8CString(const_char_ptr string)
     cdef size_t JSStringGetLength(JSStringRef string)
     cdef bint JSStringIsEqual(JSStringRef a, JSStringRef b)
-    cdef size_t JSStringGetUTF8CString(JSStringRef string, char* buffer, size_t bufferSize)
+    cdef size_t JSStringGetUTF8CString(JSStringRef string, char *buffer,
+            size_t bufferSize)
     cdef size_t JSStringGetMaximumUTF8CStringSize(JSStringRef string)
     cdef bint JSStringIsEqualToUTF8CString(JSStringRef a, const_char_ptr b)
     cdef void JSStringRelease(JSStringRef string)
 
-    cdef bint JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
-    cdef JSValueRef JSEvaluateScript(JSContextRef ctx, JSStringRef script, JSObjectRef thisObject, JSStringRef sourceURL, int startingLineNumber, JSValueRef* exception)
+    cdef bint JSCheckScriptSyntax(JSContextRef ctx, JSStringRef script,
+            JSStringRef sourceURL, int startingLineNumber,
+            JSValueRef *exception)
+    cdef JSValueRef JSEvaluateScript(JSContextRef ctx, JSStringRef script,
+            JSObjectRef thisObject, JSStringRef sourceURL,
+            int startingLineNumber, JSValueRef *exception)
     cdef void JSGarbageCollect(JSContextRef ctx)
 
     cdef JSType JSValueGetType(JSContextRef ctx, JSValueRef value)
     cdef JSValueRef JSValueMakeBoolean(JSContextRef ctx, bint boolean)
     cdef bint JSValueToBoolean(JSContextRef ctx, JSValueRef value)
     cdef JSValueRef JSValueMakeNumber(JSContextRef ctx, double number)
-    cdef double JSValueToNumber(JSContextRef ctx, JSValueRef value, JSValueRef
-            *exception)
+    cdef double JSValueToNumber(JSContextRef ctx, JSValueRef value,
+            JSValueRef *exception)
     cdef JSValueRef JSValueMakeString(JSContextRef ctx, JSStringRef string)
     cdef JSStringRef JSValueToStringCopy(JSContextRef ctx, JSValueRef value,
             JSValueRef *exception)
@@ -236,7 +242,8 @@ cdef class Context:
         obj.obj = real_obj
         return obj
 
-    def check_script_syntax(self, script, sourceURL=None, startingLineNumber=0):
+    def check_script_syntax(self, script, sourceURL=None,
+            startingLineNumber=0):
         if not script:
             raise ValueError('No script provided')
         cdef String jsscript = String(script)
@@ -309,7 +316,8 @@ cdef _value_load(Context ctx, JSValueRef value):
 
     return inst
 
-cdef _value_test_generic(Context ctx, JSValueRef value, content, valuetype, pythontype):
+cdef _value_test_generic(Context ctx, JSValueRef value, content, valuetype,
+        pythontype):
     o = _value_load(ctx, value)
     assert(isinstance(o, valuetype))
     o = o.python_value(ctx)
