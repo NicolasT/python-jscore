@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import sys
 import unittest
 
 import jscore
@@ -65,3 +66,76 @@ o;
         self.assert_(isinstance(out, jscore.JSObject))
         value = out.foo.bar.baz
         self.assert_(value == 1)
+
+
+class TestIndexedProperties(unittest.TestCase):
+    def setUp(self):
+        self.ctx = jscore.GlobalContext()
+
+    def test_access(self):
+        script = '''
+o = Object();
+o[0] = 123;
+o;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        value = out[0]
+        self.assert_(value == 123)
+
+    def test_string_access(self):
+        script = '''
+o = Object();
+o[0] = 123;
+o;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        self.assertRaises(TypeError, out.__getitem__, 'abc')
+
+    def test_negative_access(self):
+        script = '''
+o = Object();
+o[0] = 123;
+o;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        self.assertRaises(IndexError, out.__getitem__, -1)
+
+    def test_multiple_access(self):
+        script = '''
+o = Object();
+o[0] = 0;
+o[123] = 123;
+o[%d] = %d;
+o;
+''' % (sys.maxint, sys.maxint)
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        for i in (0, 123, sys.maxint):
+            self.assert_(out[i] == i)
+
+    def test_slice(self):
+        script = '''
+o = Object();
+for(i = 0; i < 100; i++)
+    o[i] = i;
+
+o;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        for i in xrange(100):
+            self.assert_(out[i] == i)
+
+        self.assert_(map(int, out[:5]) == range(5))
+
+        self.assert_(out[99:102] ==
+                (99., jscore.UNDEFINED, jscore.UNDEFINED, ))
+
+        self.assert_(map(int, out[:86:3]) == range(0, 86, 3))
+
+        self.assertRaises(ValueError, out.__getitem__, slice(None, 100, -1))
+        self.assertRaises(ValueError, out.__getitem__,
+                slice(None, None, None))

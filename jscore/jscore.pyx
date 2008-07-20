@@ -88,6 +88,9 @@ cdef extern from "JavaScriptCore/JavaScript.h":
 
     cdef JSValueRef JSObjectGetProperty(JSContextRef ctx, JSObjectRef object_,
             JSStringRef propertyName, JSValueRef *exception)
+    cdef JSValueRef JSObjectGetPropertyAtIndex(JSContextRef ctx,
+            JSObjectRef object_, unsigned propertyIndex,
+            JSValueRef *exception)
 
 
 class JSException(Exception):
@@ -272,7 +275,13 @@ cdef class JSObject:
 
         raise NotImplementedError
 
-    def __getattr__(self, name):
+    def __getattribute__(self, name):
+        try:
+            res = object.__getattribute__(self, name)
+            return res
+        except AttributeError:
+            pass
+
         cdef String jsname = String(name)
         cdef JSValueRef exception = NULL
         cdef JSValueRef o = JSObjectGetProperty(self.ctx.ctx, self.obj,
@@ -282,6 +291,49 @@ cdef class JSObject:
         value = _value_load(self.ctx, o).python_value(self.ctx)
         if value is UNDEFINED:
             raise AttributeError('No attribute %s defined' % name)
+        return value
+
+    def _get_slice(self, s):
+        if s.stop is None:
+            raise ValueError('Slice stop index is mandatory')
+
+        if s.step and s.step < 1:
+            raise ValueError('Slice step should be >= 1')
+
+        l = list()
+        cdef JSValueRef o
+        cdef JSValueRef exception = NULL
+
+        for i in xrange(s.start or 0, s.stop, s.step or 1):
+            o = JSObjectGetPropertyAtIndex(self.ctx.ctx, self.obj, i,
+                    &exception)
+            _check_exception(self.ctx, exception,
+                    'Error while getting property at index %d' % i)
+            value = _value_load(self.ctx, o).python_value(self.ctx)
+            l.append(value)
+
+        return tuple(l)
+
+    def __getitem__(self, item):
+        if not isinstance(item, (int, long, slice)):
+            raise TypeError('Only numeric items are accessible')
+
+        if isinstance(item, slice):
+            return self._get_slice(item)
+
+        if item < 0:
+            raise IndexError('Negative indices are not supported')
+
+        cdef JSValueRef exception = NULL
+        cdef int idx = item
+        cdef JSValueRef o = JSObjectGetPropertyAtIndex(self.ctx.ctx,
+                self.obj, idx, &exception)
+        _check_exception(self.ctx, exception,
+                'Error while getting property at index %d' % item)
+
+        value = _value_load(self.ctx, o).python_value(self.ctx)
+        if value is UNDEFINED:
+            raise IndexError('Invalid index %d' % item)
         return value
 
 
