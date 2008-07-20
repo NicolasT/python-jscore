@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import unittest
 
 import jscore
@@ -24,7 +25,7 @@ class TestContext(unittest.TestCase):
 
     def test_check_script_syntax_invalid(self):
         script = '--- I am an invalid script ---'
-        self.assertRaises(jscore.JSException,
+        self.assertRaises(jscore.JSSyntaxError,
                 self.ctx.check_script_syntax, script)
 
     def test_check_script_syntax_params(self):
@@ -54,7 +55,8 @@ class TestContext(unittest.TestCase):
 
     def test_evaluate_script_invalid(self):
         script = 'a -;'
-        self.assertRaises(jscore.JSException, self.ctx.evaluate_script, script)
+        self.assertRaises(jscore.JSSyntaxError, self.ctx.evaluate_script,
+                script)
 
     def test_evaluate_script_empty(self):
         script = ''

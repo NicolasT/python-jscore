@@ -119,7 +119,8 @@ class JSSyntaxError(JSException):
     source_id = None
     source_url = None
 
-    def __init__(self, message, exception_value, errLine, sourceId, sourceURL):
+    def __init__(self, message, exception_value, errLine, sourceId,
+            sourceURL=None):
         JSException.__init__(self, message, exception_value)
         self.error_line = errLine
         self.source_id = sourceId
@@ -140,18 +141,15 @@ cdef _check_exception(Context ctx, JSValueRef exception, message):
 
     value = _value_load(ctx, exception).python_value(ctx)
     if isinstance(value, JSObject):
-        #TODO Parse and raise appropriate exceptions
-        exceptionstring = JSValueToStringCopy(ctx_, exception, &innerexception)
-        _check_exception(ctx, innerexception,
-            'An exception occurred while parsing a prior exception')
+        if value.name == 'SyntaxError':
+            message = value.message
+            line = int(value.line)
+            source = int(value.sourceId)
 
-        s = String(None)
-        s.str_ = exceptionstring
-        v = str(s)
+            raise JSSyntaxError(message, value, line, source, None)
 
-        JSStringRelease(exceptionstring)
-
-        raise JSException(v, v)
+        else:
+            raise RuntimeError('Unknown exception type: %s' % value.name)
     else:
         raise JSException(message, value)
 
