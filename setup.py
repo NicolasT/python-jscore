@@ -9,7 +9,7 @@ jscore_module = [
             library_dirs=['/home/nicolas/Projects/jhbuild/webkit/inst/lib', ],
             libraries=['webkit-1.0', ],
             runtime_library_dirs=['/home/nicolas/Projects/jhbuild/webkit/inst/lib',],
-            extra_compile_args=['-ggdb3', ],
+            extra_compile_args=['-ggdb3', '-Werror', ],
             extra_link_args=['-ggdb3', ],
         )
 ]
