@@ -140,6 +140,19 @@ o;
         self.assertRaises(ValueError, out.__getitem__,
                 slice(None, None, None))
 
+    def test_property_names(self):
+        script = '''
+o = Object();
+o.foo = 'foo';
+o.bar = 123;
+o.baz = true;
+o;
+'''
+        out = self.ctx.evaluate_script(script)
+        self.assert_(isinstance(out, jscore.JSObject))
+        self.assertEqual(out.get_property_names(),
+                set(('foo', 'bar', 'baz', )))
+
 
 class TestCallables(unittest.TestCase):
     def setUp(self):

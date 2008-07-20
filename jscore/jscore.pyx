@@ -41,6 +41,10 @@ cdef extern from "JavaScriptCore/JavaScript.h":
         pass
     ctypedef OpaqueJSString *JSStringRef
 
+    cdef struct OpaqueJSPropertyNameArray:
+        pass
+    ctypedef OpaqueJSPropertyNameArray *JSPropertyNameArrayRef
+
     ctypedef enum JSType:
         kJSTypeUndefined
         kJSTypeNull
@@ -91,6 +95,12 @@ cdef extern from "JavaScriptCore/JavaScript.h":
     cdef JSValueRef JSObjectGetPropertyAtIndex(JSContextRef ctx,
             JSObjectRef object_, unsigned propertyIndex,
             JSValueRef *exception)
+    cdef JSPropertyNameArrayRef JSObjectCopyPropertyNames(JSContextRef ctx,
+            JSObjectRef object_)
+    cdef void JSPropertyNameArrayRelease(JSPropertyNameArrayRef array)
+    cdef size_t JSPropertyNameArrayGetCount(JSPropertyNameArrayRef array)
+    cdef JSStringRef JSPropertyNameArrayGetNameAtIndex(
+            JSPropertyNameArrayRef array, size_t index)
     cdef bint JSObjectIsFunction(JSContextRef ctx, JSObjectRef object_)
     cdef JSValueRef JSObjectCallAsFunction(JSContextRef ctx,
             JSObjectRef object_, JSObjectRef thisObject, size_t argumentCount,
@@ -349,6 +359,23 @@ cdef class JSObject:
             raise IndexError('Invalid index %d' % item)
         return value
 
+    def get_property_names(self):
+        cdef JSPropertyNameArrayRef names = JSObjectCopyPropertyNames(
+                self.ctx.ctx, self.obj)
+        cdef size_t len = JSPropertyNameArrayGetCount(names)
+        cdef JSStringRef s = NULL
+        cdef String s_ = None
+
+        pnames = list()
+        for i in xrange(len):
+            s = JSPropertyNameArrayGetNameAtIndex(names, i)
+            s_ = String(None)
+            s_.str_ = s
+            pnames.append(unicode(s_))
+
+        JSPropertyNameArrayRelease(names)
+
+        return set(pnames)
 
 cdef JSValueRef _python_to_value(Context ctx, obj):
     cdef JSValueRef value = NULL
